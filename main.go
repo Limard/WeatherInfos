@@ -64,6 +64,7 @@ func main() {
 	router := http.NewServeMux()
 	router.HandleFunc("/", safe_http_handle(safe_statement))
 	router.HandleFunc("/weather", safe_http_handle(ShowWeather))
+	router.HandleFunc("/weather2", safe_http_handle(ShowWeather2))
 	router.HandleFunc("/citylist", safe_http_handle(ShowCityList))
 	router.HandleFunc("/weather/status", safe_http_handle(ShowStatus))
 
@@ -161,6 +162,51 @@ func ShowWeather(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Add("Content-Type", "application/json")
+	if nil != err {
+		errResp(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if nil == Resp {
+		errResp(w, http.StatusInternalServerError, "Internal Server Error")
+		return
+	}
+	jsonStr, err := json.Marshal(Resp)
+	if nil != err {
+		errResp(w, http.StatusInternalServerError, "Internal Server Error")
+		return
+	}
+	w.Write(jsonStr)
+}
+
+func ShowWeather2(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Type", "application/json")
+	if r.Method != http.MethodGet {
+		errResp(w, http.StatusMethodNotAllowed, http.ErrBodyNotAllowed.Error())
+		return
+	}
+	r.ParseForm()
+	prov, has := r.Form[FIELD_NAME]
+	if !has {
+		errResp(w, http.StatusBadRequest, "parameter error")
+		return
+	}
+	strCity := prov[0]
+	params := strings.Split(strCity, STR_SEP)
+
+	weatherHandle := getWeatherHandle()
+	if nil == weatherHandle {
+		log.Printf("weatherHandle is nil, please check")
+		errResp(w, http.StatusInternalServerError, "Internal Server Error")
+		return
+	}
+
+	location := weatherHandle.SearchLocation(params)
+	if location == nil {
+		errResp(w, http.StatusBadRequest, "not found this city")
+		return
+	}
+
+	Resp, err := weatherHandle.ShowCityWeatherRegion(location)
 	if nil != err {
 		errResp(w, http.StatusBadRequest, err.Error())
 		return

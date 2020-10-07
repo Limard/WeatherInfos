@@ -601,3 +601,83 @@ func (c *Weather) loadRegionData(path string) error {
 	}
 	return decoder.Decode(c.treeRegion)
 }
+
+func (c *Weather) SearchLocation(params []string) *RegionInfo {
+	c.regionMu.RLock()
+	defer c.regionMu.RUnlock()
+
+	switch len(params) {
+	case 3:
+		if province, h1 := c.treeRegion.Regions[params[0]]; h1 { /*TODO: make it recursion*/
+			if dist, h2 := province.Regions[params[1]]; h2 {
+				if city, h3 := dist.Regions[params[2]]; h3 {
+					return &city.RegionInfo
+				}
+			}
+		}
+	case 2:
+		if province, h1 := c.treeRegion.Regions[params[0]]; h1 { /*TODO: make it recursion*/
+			if dist, h2 := province.Regions[params[1]]; h2 {
+				if city, h3 := dist.Regions[params[1]]; h3 {
+					return &city.RegionInfo
+				}
+			}
+		}
+
+		for _, province := range c.treeRegion.Regions {
+			if dist, h2 := province.Regions[params[0]]; h2 {
+				if city, h3 := dist.Regions[params[1]]; h3 {
+					return &city.RegionInfo
+				}
+			}
+		}
+
+	case 1:
+		if province, h1 := c.treeRegion.Regions[params[0]]; h1 { /*TODO: make it recursion*/
+			if dist, h2 := province.Regions[params[0]]; h2 {
+				if city, h3 := dist.Regions[params[0]]; h3 {
+					return &city.RegionInfo
+				}
+			}
+		}
+
+		for _, province := range c.treeRegion.Regions {
+			if dist, h2 := province.Regions[params[0]]; h2 {
+				if city, h3 := dist.Regions[params[0]]; h3 {
+					return &city.RegionInfo
+				}
+			}
+
+			for _, dist := range province.Regions {
+				if city, h3 := dist.Regions[params[0]]; h3 {
+					return &city.RegionInfo
+				}
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (c *Weather) ShowCityWeatherRegion(info *RegionInfo) (Resp *WeatherInfo, err error) {
+	if nil == info {
+		return nil, errors.New("bad parameter")
+	}
+
+	resp, has := c.getWeatherInfoForCache(info.Code_)
+	if has && !timeCheck(resp.getime_) {
+		return resp, nil
+	}
+	if has {
+		log.Printf("last update time：%s  %s\n", resp.FullName_, resp.getime_.Format(time.RFC3339))
+	}
+	if newResp, err := c.get7DaysWeatherInfoByCity(*info, !has); nil == err {
+		return newResp, err
+	} else if has {
+		log.Printf("update failed, return the old weather data of [%s]", resp.FullName_)
+		return resp, nil
+	} else {
+		return nil, err
+	}
+}
